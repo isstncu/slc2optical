@@ -1,0 +1,108 @@
+data:
+    dataset: "SAR"
+    # image_size: 128
+    image_size: 64
+    # Complex SAR
+    channels: 4 #2 GRD # 4 C2Matrix
+    # GRD SAR
+#    channels: 2 # 3
+    num_workers: 8
+    data_dir: "/data1/jbwei/Pke/ComplexSLC2S2/"
+#    A100 train
+#    data_dir: "/home/jbwei/190_data1/Pke/ComplexSLC2S2/"
+    conditional: True
+
+model:
+    in_channels: 7 # 8 ComplexSAR # 7 C2Matrix # 6 GRD
+    out_ch: 4 # 1 if not learn_sigma(iddpm) else 2
+    ch: 128
+    ch_mult: [1, 1, 2, 3, 4] # 通道算子
+    # V21
+#    ch_mult: [1, 1, 2, 2, 4, 4] # 通道算子
+    # V22
+#    ch_mult: [1, 2, 3, 4] # 通道算子
+
+    num_res_blocks: 2
+    attn_resolutions: [32,16,8] # iddpm中[16,8],这里改成[32,16,8]
+    # V21
+#    attn_resolutions: [16,8] # iddpm中[16,8]
+
+    dropout: 0.0
+    ema_rate: 0.999
+    ema: True
+    resamp_with_conv: True
+
+diffusion:
+    mode: train # or valid
+    beta_schedule: linear
+    beta_start: 0.0001
+    beta_end: 0.02
+    num_diffusion_timesteps: 1000
+
+training:
+    name: "ComplexSLC2S2"
+    ## "ComplexSLC2S2"
+    # v1 weather diffusion
+    # v2 S2 + 0.5normalize + loss:MSE+KL + 随机裁剪 + (复数+S2=8channels)->8channels
+    # v3 S2 + 0.5normalize + complex conv unet_complex.py + 固定裁剪 + (mod + S2 = 6channels + 复数分支)->4channels + loss:MSE + 复数分支
+    # v4 S2 + 0.5normalize + out_ch=4,去掉kl即(复数+S2=8channels)->4channels + 固定裁剪 + loss:MSE
+    # v5 S2 + 0.5normalize + 固定裁剪 + (mod+S2=6channels)->4channels + loss:MSE
+    # v6 S2 + 0.5normalize + 固定裁剪 + (mod+复数+S2=10channels)->4channels + loss:MSE
+    # no normalize > normalize
+    # v7 S2 + 固定裁剪 + (mod+S2=6channels)->4channels + loss:MSE + val_batch_size=4
+    # v8 S2 + complex conv unet_complex.py + 固定裁剪 + (mod + S2 = 6channels + 复数分支)->4channels + loss:MSE + 复数分支
+    # v9 S2 + 固定裁剪 + image_size: 64 + (mod + S2 = 6channels)->4channels + loss:MSE + + val_batch_size=4 + attn_resolutions: [32,16,8]
+    # v13 S2 + 固定裁剪 + image_size: 64 + (mod + S2 = 6channels + 复数分支)->8channels + loss:MSE + kl + + val_batch_size=4 + attn_resolutions: [32,16,8]
+
+    # v10 S2 + complex conv unet_complex.py + 固定裁剪 + image_size: 64 + (mod + S2 = 6channels + fft(复数分支 + S2))->4channels + loss:MSE
+    # v14 S2 + complex conv unet_complex.py + 固定裁剪 + image_size: 64 + (mod + S2 = 6channels + fft(复数分支 + S2))->4channels + loss:(MSE + fft_MSE*0.01) + eval_loss:MSE+ TVLoss + val_batch_size=4 + attn_resolutions: [32,16,8]
+    # v11🥉 S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (mod + S2 = 6channels + fft(复数分支 + S2))->4channels + loss:MSE
+    # v15🥈  S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (mod + S2 = 6channels + fft(复数分支 + S2))->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE+ TVLoss + batch_size = 8 A100
+    # v24 complex + S2 + unet + image_size:64 + (complex+S2=8channels)->4channels + loss:MSE
+
+    # v12 S1 + normalize + S2 + 固定裁剪 + image_size: 64 + (mod+S2=6channels)->4channels + loss:MSE + val_batch_size=4 + batch_size = 8 A100
+    ## C2Matrix ML->speckle
+    # v16 🥉 C2Matrix+ S2 + unet.py + 固定裁剪 + image_size: 64 + (C11+C12_real+C12_imag+C22 + S2 = 8channels)->4channels + loss:MSE + eval_loss:MSE + TV_loss
+    # v17 C2Matrix+ S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(C12_real+C12_imag+S2)=5channels)->4channels + loss:MSE + eval_loss:MSE + TV_loss
+    # v18 🥇 C2Matrix+ S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(C12_real+C12_imag+S2)=5channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+
+    # v19 C2Matrix+ S2 + complex conv unet_complex_CDS.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2 =7channels + 复数分支：Complex(C12_real+C12_imag)=1channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v20 C2Matrix+ S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：Complex(C12_real+C12_imag)=1channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v21 SAR2S2.yml C2Matrix+ S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(C12_real+C12_imag+S2)=5channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v22 SAR2S2.yml C2Matrix+ S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(C12_real+C12_imag+S2)=5channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss 不同通道算子
+    # v23 SAR2S2.yml C2Matrix+ S2 + complex conv unet_complex_end_to_end.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(C12_real+C12_imag+S2)=5channels)->4channels + loss:(MSE + 2e-3*tv_loss + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v25 C2Matrix+ S2 + complex conv unet.py + 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v26 C2Matrix+ S2 + complex conv unet.py + 固定裁剪 + image_size: 64 + (C11+C12_real+C12_imag+C22 + S2=8channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v27 C2Matrix+ S2 + complex conv unet_complex_end_to_end.py+ 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(S2)=4channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v28 GRD：cat(VV,VH,sqrt(VV*VH))作为输入，网络包含频域 + S2 + complex conv unet_complex_end_to_end.py+ 固定裁剪 + image_size: 64 + (VV + VH + S2=6channels + 复数分支：fft(S2)=4channels)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v29 C2Matrix+ S2 + complex conv unet_complex_end_to_end.py+ 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(S2)=4channels + torch.abs(复数分支)：complex(C12_real + C12_imag)=1channel)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v30 C2Matrix+ S2 + complex conv unet_complex_end_to_end.py+ 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(S2)=4channels + torch.real(复数分支)+上采样跳连：complex(C12_real + C12_imag)=1channel)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+    # v31 C2Matrix+ S2 + complex conv unet_complex_end_to_end.py+ 固定裁剪 + image_size: 64 + (C11+mod(C12)+C22 + S2=7channels + 复数分支：fft(S2)=4channels + torch.real(复数分支)：complex(C12_real + C12_imag)=1channel)->4channels + loss:(MSE + fft_MSE*0.001) + eval_loss:MSE + TV_loss
+#    name: "GRD2S2"
+    ## v7 S2 + 固定裁剪 + (mod+S2=6channels)->4channels + loss:MSE + val_batch_size=4
+    version: "v31"
+    patch_n: 16
+#    A100
+#    batch_size: 8 # 4
+#    3090
+    batch_size: 3 #2
+    n_epochs: 1000
+    n_iters: 200
+#    A100
+#    validation_freq: 2500 #26000
+#    3090
+    validation_freq: 5000 #26000
+
+sampling:
+    batch_size: 4 # val batch_size
+    last_only: True
+    sample_type: "ddim" # added chose ddim or dpm_solver++
+    schedule: "linear" # added
+    filelist: "test.txt" # "syn_val.txt" or "real_sar_test.txt" or "syn_test.txt" or "test.txt" 测单张图片
+
+optim:
+    weight_decay: 0.000
+    optimizer: "Adam"
+    lr: 0.00002
+    amsgrad: False
+    eps: 0.00000001
